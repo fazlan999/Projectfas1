@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Docker Drop - Simple Click Game</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1d3557, #0b132b 60%);
+      color: #f1faee;
+    }
+
+    .game {
+      width: min(720px, 92vw);
+      background: rgba(13, 27, 42, 0.92);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(241, 250, 238, 0.12);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: clamp(1.6rem, 2vw + 1.4rem, 2.6rem);
+      letter-spacing: 0.03em;
+    }
+
+    p {
+      line-height: 1.5;
+      margin-bottom: 1.2rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin: 20px 0 28px;
+    }
+
+    .stat {
+      background: rgba(69, 123, 157, 0.2);
+      border-radius: 16px;
+      padding: 14px 18px;
+      border: 1px solid rgba(241, 250, 238, 0.1);
+    }
+
+    .stat span {
+      display: block;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.4rem;
+      margin-top: 6px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #e63946;
+      color: #f1faee;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button.secondary {
+      background: transparent;
+      border: 1px solid rgba(241, 250, 238, 0.4);
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 18px rgba(230, 57, 70, 0.35);
+    }
+
+    .arena {
+      margin-top: 26px;
+      height: 180px;
+      border-radius: 18px;
+      background: rgba(29, 53, 87, 0.75);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .orb {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #f1faee, #a8dadc 40%, #457b9d 70%);
+      box-shadow: 0 0 12px rgba(241, 250, 238, 0.7);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .orb:active {
+      transform: scale(0.9);
+    }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      opacity: 0.75;
+    }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <h1>Docker Drop</h1>
+    <p>Click the glowing orb before it moves. Rack up points during the 30-second round. Perfect for a tiny containerized demo.</p>
+
+    <section class="stats">
+      <div class="stat">
+        <span>Time Left</span>
+        <strong id="time">30s</strong>
+      </div>
+      <div class="stat">
+        <span>Score</span>
+        <strong id="score">0</strong>
+      </div>
+      <div class="stat">
+        <span>Best</span>
+        <strong id="best">0</strong>
+      </div>
+    </section>
+
+    <div class="controls">
+      <button id="start">Start Round</button>
+      <button id="reset" class="secondary">Reset Best</button>
+    </div>
+
+    <div class="arena" id="arena">
+      <div class="orb" id="orb" aria-label="Click me"></div>
+    </div>
+
+    <div class="footer">Tip: Deploy this HTML file with an Nginx Docker image in seconds.</div>
+  </main>
+
+  <script>
+    const timeEl = document.getElementById("time");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const startBtn = document.getElementById("start");
+    const resetBtn = document.getElementById("reset");
+    const arena = document.getElementById("arena");
+    const orb = document.getElementById("orb");
+
+    let timeLeft = 30;
+    let score = 0;
+    let best = Number(localStorage.getItem("docker-drop-best")) || 0;
+    let timerId = null;
+
+    bestEl.textContent = best;
+
+    const randomPosition = () => {
+      const padding = 10;
+      const maxX = arena.clientWidth - orb.offsetWidth - padding;
+      const maxY = arena.clientHeight - orb.offsetHeight - padding;
+      const x = Math.max(padding, Math.random() * maxX);
+      const y = Math.max(padding, Math.random() * maxY);
+      orb.style.transform = "translate(0, 0)";
+      orb.style.left = `${x}px`;
+      orb.style.top = `${y}px`;
+    };
+
+    const updateTime = () => {
+      timeEl.textContent = `${timeLeft}s`;
+    };
+
+    const endRound = () => {
+      clearInterval(timerId);
+      timerId = null;
+      startBtn.disabled = false;
+      if (score > best) {
+        best = score;
+        localStorage.setItem("docker-drop-best", best);
+        bestEl.textContent = best;
+      }
+    };
+
+    const tick = () => {
+      timeLeft -= 1;
+      updateTime();
+      if (timeLeft <= 0) {
+        endRound();
+      }
+    };
+
+    startBtn.addEventListener("click", () => {
+      if (timerId) {
+        return;
+      }
+      score = 0;
+      timeLeft = 30;
+      scoreEl.textContent = score;
+      updateTime();
+      randomPosition();
+      startBtn.disabled = true;
+      timerId = setInterval(tick, 1000);
+    });
+
+    resetBtn.addEventListener("click", () => {
+      best = 0;
+      localStorage.setItem("docker-drop-best", best);
+      bestEl.textContent = best;
+    });
+
+    orb.addEventListener("click", () => {
+      if (!timerId) {
+        return;
+      }
+      score += 1;
+      scoreEl.textContent = score;
+      randomPosition();
+    });
+
+    window.addEventListener("resize", randomPosition);
+
+    randomPosition();
+  </script>
+</body>
+</html>
